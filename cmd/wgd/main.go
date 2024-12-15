@@ -25,8 +25,8 @@ const IfaceName = "wg0"
 type WgDaemon struct {
 	client *wgctrl.Client
 
-	apiKey   string
-	masterIp string
+	apiKey        string
+	masterAddress string
 
 	address    net.IPNet
 	port       int
@@ -38,15 +38,21 @@ type WgDaemon struct {
 }
 
 func main() {
-	var masterIp string
+	var masterAddress string
 	var apiKey string
 
-	flag.StringVar(&masterIp, "masterIp", "", "master ip to register daemon at")
+	flag.StringVar(&masterAddress, "masterAddress", "", "master ip to register daemon at")
 	flag.StringVar(&apiKey, "apiKey", "", "api key to register daemon")
 	flag.Parse()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer cancel()
+	defer func() {
+		cancel()
+		err := iface.Delete(IfaceName)
+		if err != nil {
+			logrus.WithError(err).Fatal("failed to delete interface")
+		}
+	}()
 
 	logger := daemon.CreateLogger()
 
@@ -59,8 +65,8 @@ func main() {
 	d := &WgDaemon{
 		client: client,
 
-		apiKey:   apiKey,
-		masterIp: masterIp,
+		apiKey:        apiKey,
+		masterAddress: masterAddress,
 
 		logger: logger,
 	}
@@ -103,7 +109,7 @@ type WgDaemonConfigDto struct {
 }
 
 func (d *WgDaemon) getConfigVersion() (int, error) {
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/daemon/config/version", d.masterIp), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/api/daemon/config/version", d.masterAddress), nil)
 
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to create request")
@@ -174,7 +180,7 @@ func (d *WgDaemon) configDaemon(ctx context.Context) error {
 }
 
 func (d *WgDaemon) getDaemonConfig(ctx context.Context) (*WgDaemonConfigDto, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/api/daemon/config", d.masterIp), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/api/daemon/config", d.masterAddress), nil)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create request")
@@ -223,7 +229,7 @@ func (d *WgDaemon) startHeartbeat(ctx context.Context) {
 }
 
 func (d *WgDaemon) sendHeartbeat(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/api/daemon/heartbeat", d.masterIp), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/api/daemon/heartbeat", d.masterAddress), nil)
 
 	if err != nil {
 		return errors.Wrap(err, "failed to create request")
@@ -307,7 +313,7 @@ func (d *WgDaemon) listenForConfigChanges(ctx context.Context, ifName string) {
 }
 
 func (d *WgDaemon) getPeers(ctx context.Context) ([]WgDaemonPeerConfigDto, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/api/daemon/peers", d.masterIp), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://%s/api/daemon/peers", d.masterAddress), nil)
 
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create request")

@@ -1,7 +1,6 @@
 package iface
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
 	"net"
 	"os/exec"
@@ -15,8 +14,6 @@ func Create(ifName, address string) error {
 	if err != nil {
 		return errors.Wrap(err, "failed to create interface")
 	}
-
-	fmt.Println("Interface created")
 
 	cmd = exec.Command("ip", "address", "add", address, "dev", ifName)
 
